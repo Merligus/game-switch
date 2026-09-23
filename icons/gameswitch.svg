@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#4f8ef7"/>
+      <stop offset="1" stop-color="#1d4ed8"/>
+    </linearGradient>
+  </defs>
+  <rect x="2" y="2" width="44" height="44" rx="10" fill="url(#bg)"/>
+  <!-- upper arrow: disk A -> disk B -->
+  <g fill="none" stroke="#ffffff" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M12.5 18.5 H30.5"/>
+    <path d="M26.5 13.8 L32.2 18.5 L26.5 23.2"/>
+    <!-- lower arrow: disk B -> disk A -->
+    <path d="M35.5 29.5 H17.5"/>
+    <path d="M21.5 24.8 L15.8 29.5 L21.5 34.2"/>
+  </g>
+  <!-- the two disks being switched between -->
+  <g fill="#ffffff" opacity="0.92">
+    <circle cx="11" cy="29.5" r="2.15"/>
+    <circle cx="37" cy="18.5" r="2.15"/>
+  </g>
+</svg>

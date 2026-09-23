@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=GameSwitch
+GenericName=Game disk switcher
+Comment=Move Steam and Heroic games between the SSD and the Windows HD
+Exec=gameswitch
+Icon=gameswitch
+Terminal=false
+Categories=Game;Utility;System;
+Keywords=steam;heroic;disk;ssd;move;games;
+StartupNotify=true
+StartupWMClass=gameswitch
