@@ -124,6 +124,14 @@ exact title.
 * Folders in `common/` with no `appmanifest_*.acf` (leftovers from old installs).
 * `shadercache/` — it stays on the SSD and regenerates on its own.
 
+## Tests
+
+    python3 tests/test_process_detection.py
+
+Checks that a real Steam or Heroic process is found *and* that the app's own
+rsync is not — both directions, because a detector that finds nothing satisfies
+either half on its own.
+
 ## Layout
 
     gameswitch/config.py      paths and policy, all overridable by env vars

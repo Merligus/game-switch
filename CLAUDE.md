@@ -61,6 +61,20 @@ can be reparented to init), and `_TOOL_EXES` rules out rsync and friends by name
 as a second net. The pre-delete gate re-runs this check, so a false positive here
 can abort a transfer after the metadata was already rewritten.
 
+**Do not match a candidate's parent chain against the ancestor set.**
+`systemd --user` is an ancestor of every process in a desktop session, so
+walking a candidate's parents looking for "any pid of ours" marks *everything*
+as ours and the launcher checks go silently blind — the app reported "Steam and
+Heroic are closed" with Steam wide open. The ancestor set is for DIRECT
+membership only (our own shell may have `cwd` inside a library); the parent walk
+must look only for our own pid or a registered child.
+
+**A one-sided detector test is worthless.** The bug above slipped through
+because the test only asserted that our rsync was *not* flagged — which a dead
+detector satisfies perfectly. `tests/test_process_detection.py` now asserts both
+directions and is verified to fail on both historical bugs. Run it after
+touching anything in `safety.py`.
+
 **`pgrep -f` matches this process.** A pattern in our own argv makes the app
 detect itself as a running launcher. Detect running games by walking `/proc` and
 comparing each process's `exe`/`cwd` against the library roots, and use
@@ -98,6 +112,7 @@ writability; it removes any it created.
     ./bin/gameswitch --doctor                      # disks, launchers, pending recovery
     ./bin/gameswitch --switch <key> --dry-run      # full plan, writes nothing
     ./bin/gameswitch --switch <key> --deep-verify  # checksum every file
+    python3 tests/test_process_detection.py        # after any safety.py change
 
 Use the smallest real game for round trips. Verify a round trip with
 `sha256sum` over every file *and* `find -printf '%m %y %p\n'` for the permission

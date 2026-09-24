@@ -65,19 +65,27 @@ def _ppid(pid: int) -> int:
         return 0
 
 
-def _is_ours(pid: int) -> bool:
-    """True for this process, its ancestors, and anything it spawned.
+def _is_ours(pid: int, mine: set[int] | None = None) -> bool:
+    """True for this process, one of its ancestors, or something it spawned.
 
     rsync chdirs into the directory it is writing into, so during a transfer our
     own copier sits inside a game folder and would otherwise be reported as a
-    running launcher.  Walking the parent chain catches it whatever it is called.
+    running launcher.  Walking the candidate's parent chain up to our own pid
+    catches it whatever it is called.
+
+    The ancestor set is tested by DIRECT membership only, never along that walk:
+    `systemd --user` is an ancestor of every process in the session, so matching
+    it would mark all of them as ours and blind the launcher checks completely.
     """
-    mine = _own_pids()
+    mine = _own_pids() if mine is None else mine
+    if pid in mine:
+        return True
+    me = os.getpid()
     cur, seen = pid, set()
     for _ in range(64):
         if cur <= 1 or cur in seen:
             break
-        if cur in mine or cur in _OUR_CHILDREN:
+        if cur == me or cur in _OUR_CHILDREN:
             return True
         seen.add(cur)
         cur = _ppid(cur)
@@ -118,12 +126,13 @@ def _procs_under(roots: tuple[Path, ...]) -> list[int]:
         except OSError:
             resolved.append(str(r))
     uid = os.getuid()
+    mine = _own_pids()
     found: list[int] = []
     for entry in Path("/proc").iterdir():
         if not entry.name.isdigit():
             continue
         pid = int(entry.name)
-        if _is_ours(pid):
+        if _is_ours(pid, mine):
             continue
         try:
             if entry.stat().st_uid != uid:
