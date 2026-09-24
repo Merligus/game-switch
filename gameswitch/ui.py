@@ -172,6 +172,7 @@ class ProgressDialog(QtWidgets.QDialog):
 
     @QtCore.Slot(str)
     def on_log(self, msg: str) -> None:
+        logging.info("%s", msg)
         self.log.appendPlainText(msg)
         if msg.startswith("WARNING") and not self.log_toggle.isChecked():
             self.log_toggle.setChecked(True)
@@ -425,6 +426,9 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def _offer_fix(self, blockers) -> bool:
         msg = "\n\n".join(b.message for b in blockers)
+        logging.warning("switch blocked: %s", " | ".join(b.code for b in blockers))
+        for b in blockers:
+            logging.warning("  %s", b.message)
         box = QtWidgets.QMessageBox(self)
         box.setWindowTitle("Cannot switch yet")
         box.setIcon(QtWidgets.QMessageBox.Warning)

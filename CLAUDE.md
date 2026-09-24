@@ -49,6 +49,18 @@ loop while `run()` is executing, so a queued `cancel` is never delivered and the
 button silently does nothing. Call `worker.cancel()` directly from a GUI-thread
 lambda — it only sets a flag and terminates the rsync child, both thread-safe.
 
+**rsync chdirs into its destination, and that looked like a running launcher.**
+A running Proton game is detected by its `cwd` being inside the game folder — but
+so is our own receiving rsync, whose `cwd` is the directory it is writing into.
+GameSwitch therefore reported "Heroic is running (3 processes)" during a Heroic
+transfer, and the same applies to Steam since the library roots are checked the
+same way. Excluding our own *ancestors* is not enough; descendants must go too.
+`_is_ours()` walks each candidate's parent chain looking for our pid or a pid the
+transfer registered via `register_child()` (registration matters because a helper
+can be reparented to init), and `_TOOL_EXES` rules out rsync and friends by name
+as a second net. The pre-delete gate re-runs this check, so a false positive here
+can abort a transfer after the metadata was already rewritten.
+
 **`pgrep -f` matches this process.** A pattern in our own argv makes the app
 detect itself as a running launcher. Detect running games by walking `/proc` and
 comparing each process's `exe`/`cwd` against the library roots, and use

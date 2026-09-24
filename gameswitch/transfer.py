@@ -429,6 +429,7 @@ class Transfer:
 
         env = dict(os.environ, LC_ALL="C")
         self._proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, env=env)
+        safety.register_child(self._proc.pid)
         started = time.time()
         pending = b""
         fd = self._proc.stdout.fileno()
@@ -459,6 +460,7 @@ class Transfer:
             if self._cancel:
                 break
         rc = self._proc.wait()
+        safety.unregister_child(self._proc.pid)
         self._proc = None
         self._check_cancel()
         if rc != 0:

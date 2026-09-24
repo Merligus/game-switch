@@ -40,6 +40,50 @@ def _own_pids() -> set[int]:
     return pids
 
 
+# PIDs of helpers this app spawned (rsync and its systemd-inhibit wrapper).
+# Registered by the transfer so process detection can rule them out even after
+# they are reparented to init.
+_OUR_CHILDREN: set[int] = set()
+
+# Binaries this app drives.  A launcher is never one of these, so they can be
+# ruled out on name alone as a second net.
+_TOOL_EXES = {"rsync", "systemd-inhibit", "cp", "mv", "ionice", "nice"}
+
+
+def register_child(pid: int) -> None:
+    _OUR_CHILDREN.add(pid)
+
+
+def unregister_child(pid: int) -> None:
+    _OUR_CHILDREN.discard(pid)
+
+
+def _ppid(pid: int) -> int:
+    try:
+        return int(Path(f"/proc/{pid}/stat").read_text().rsplit(") ", 1)[1].split()[1])
+    except (OSError, ValueError, IndexError):
+        return 0
+
+
+def _is_ours(pid: int) -> bool:
+    """True for this process, its ancestors, and anything it spawned.
+
+    rsync chdirs into the directory it is writing into, so during a transfer our
+    own copier sits inside a game folder and would otherwise be reported as a
+    running launcher.  Walking the parent chain catches it whatever it is called.
+    """
+    mine = _own_pids()
+    cur, seen = pid, set()
+    for _ in range(64):
+        if cur <= 1 or cur in seen:
+            break
+        if cur in mine or cur in _OUR_CHILDREN:
+            return True
+        seen.add(cur)
+        cur = _ppid(cur)
+    return False
+
+
 def _comm(pid: int) -> str:
     try:
         return Path(f"/proc/{pid}/comm").read_text().strip()
@@ -73,19 +117,21 @@ def _procs_under(roots: tuple[Path, ...]) -> list[int]:
             resolved.append(str(r.resolve()))
         except OSError:
             resolved.append(str(r))
-    mine = _own_pids()
     uid = os.getuid()
     found: list[int] = []
     for entry in Path("/proc").iterdir():
         if not entry.name.isdigit():
             continue
         pid = int(entry.name)
-        if pid in mine:
+        if _is_ours(pid):
             continue
         try:
             if entry.stat().st_uid != uid:
                 continue
         except OSError:
+            continue
+        exe_name = (_link(pid, "exe") or Path("")).name
+        if exe_name in _TOOL_EXES or _comm(pid) in _TOOL_EXES:
             continue
         for what in ("exe", "cwd"):
             target = _link(pid, what)
@@ -114,11 +160,10 @@ def steam_processes() -> list[tuple[int, str]]:
     ~/.steam/steam.pid is NOT trusted on its own: it is routinely left behind
     stale after a crash or an unclean logout (it is stale on this machine).
     """
-    mine = _own_pids()
     hits: dict[int, str] = {}
     for name in ("steam", "steamwebhelper", "steamerrorrepor", "gameoverlayui"):
         for pid in _pgrep_exact(name):
-            if pid not in mine:
+            if not _is_ours(pid):
                 hits[pid] = _comm(pid) or name
     for pid in _procs_under((config.STEAM_ROOT, config.SSD_STEAM_LIB, config.HD_PARK_STEAM)):
         hits[pid] = _comm(pid) or _cmdline(pid)
@@ -127,17 +172,16 @@ def steam_processes() -> list[tuple[int, str]]:
         pid = int(pidfile.read_text().strip())
     except (OSError, ValueError):
         pid = 0
-    if pid and pid not in mine and _alive(pid) and "steam" in _comm(pid).lower():
+    if pid and not _is_ours(pid) and _alive(pid) and "steam" in _comm(pid).lower():
         hits.setdefault(pid, _comm(pid))
     return sorted(hits.items())
 
 
 def heroic_processes() -> list[tuple[int, str]]:
-    mine = _own_pids()
     hits: dict[int, str] = {}
     for name in ("heroic", "legendary", "gogdl", "nile"):
         for pid in _pgrep_exact(name):
-            if pid not in mine:
+            if not _is_ours(pid):
                 hits[pid] = _comm(pid) or name
     roots = (Path("/opt/Heroic"), config.HEROIC_CONFIG, config.SSD_HEROIC, config.HD_HEROIC)
     for pid in _procs_under(roots):
